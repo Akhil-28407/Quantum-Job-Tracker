@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Login - BlueQubit</title>
+    <!-- Google Identity Services: replace YOUR_GOOGLE_CLIENT_ID with your client id or
+         set the template variable GOOGLE_CLIENT_ID when rendering this template -->
+    <meta name="google-signin-client_id" content="89857319729-uqu91j35vq9m5djjmrclbd8dorkhktej.apps.googleusercontent.com" />
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    /* Existing root variables */
+    :root {
+      --bg1:#0a0f1f;
+      --bg2:#232b4d;
+      --card:#0f172a;
+      --accent:#3b82f6;
+      --muted:#94a3b8;
+      --white:#f1f5f9;
+      --radius:14px;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    }
+
+    html,body{
+      height:100%;
+      margin:0;
+    }
+
+    body{
+      background: linear-gradient(135deg, var(--bg1) 0%, var(--bg2) 100%);
+      color:var(--white);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:24px;
+    }
+
+    .auth-card{
+      width:100%;
+      max-width:420px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border:1px solid rgba(255,255,255,0.04);
+      border-radius:var(--radius);
+      box-shadow: 0 12px 32px rgba(11,28,70,0.6);
+      padding:28px;
+      box-sizing:border-box;
+      backdrop-filter: blur(6px);
+    }
+
+    .brand{
+      font-size:28px;
+      color:var(--accent);
+      margin:0 0 6px 0;
+      letter-spacing:0.4px;
+    }
+    .subtitle{
+      margin:0 0 18px 0;
+      color:var(--muted);
+      font-size:13px;
+    }
+
+    label{ display:block; margin-bottom:12px; font-size:13px; color:var(--muted); }
+    input[type="text"], input[type="password"]{
+      width:100%;
+      padding:10px 12px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,0.04);
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.00));
+      color:var(--white);
+      outline:none;
+      box-sizing:border-box;
+      font-size:15px;
+    }
+    input::placeholder{ color: rgba(241,245,249,0.28); }
+
+    input:focus{
+      border-color: rgba(59,130,246,0.6);
+      box-shadow: 0 8px 24px rgba(59,130,246,0.08);
+    }
+
+    .actions{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      margin-top:12px;
+    }
+
+    button.btn{
+      background:var(--accent);
+      color:white;
+      border:none;
+      padding:10px 14px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:600;
+      box-shadow: 0 8px 20px rgba(59,130,246,0.12);
+    }
+    button.btn:hover{ transform: translateY(-1px); }
+
+    .note{
+      margin-top:14px;
+      font-size:13px;
+      color:var(--muted);
+      text-align:left;
+    }
+
+    .error{
+      background: rgba(220,38,38,0.08);
+      color: #fecaca;
+      padding:8px 10px;
+      border-radius:8px;
+      margin-bottom:10px;
+      font-size:13px;
+    }
+
+    /* Enhanced Mobile Responsiveness */
+    @media screen and (max-width: 768px) {
+      body {
+        padding: 16px;
+      }
+
+      .auth-card {
+        padding: 20px;
+        max-width: 100%;
+        border-radius: 12px;
+      }
+
+      .brand {
+        font-size: 24px;
+      }
+
+      .subtitle {
+        font-size: 12px;
+      }
+
+      input[type="text"], 
+      input[type="password"] {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 12px;
+      }
+
+      .actions {
+        flex-direction: column;
+        gap: 16px;
+        margin-top: 20px;
+      }
+
+      .actions div {
+        text-align: center;
+        word-break: break-word;
+      }
+
+      button.btn {
+        width: 100%;
+        padding: 12px;
+        font-size: 16px;
+      }
+
+      .note {
+        text-align: center;
+        margin-top: 20px;
+      }
+    }
+
+    /* Small mobile devices */
+    @media screen and (max-width: 380px) {
+      body {
+        padding: 12px;
+      }
+
+      .auth-card {
+        padding: 16px;
+      }
+
+      .brand {
+        font-size: 20px;
+      }
+
+      input[type="text"], 
+      input[type="password"] {
+        padding: 10px;
+      }
+
+      .error {
+        font-size: 12px;
+        padding: 6px 8px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="auth-card" role="main" aria-labelledby="brand">
+    <h1 id="brand" class="brand">BlueQubit</h1>
+    <p class="subtitle">Sign in to access the dashboard</p>
+
+    {% if error %}
+      <div class="error" role="alert">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('login', next=request.args.get('next')) }}" autocomplete="on">
+      <label for="username">Username
+        <input id="username" name="username" type="text" required placeholder="admin" />
+      </label>
+
+      <label for="password">Password
+        <input id="password" name="password" type="password" required placeholder="••••••••" />
+      </label>
+
+      <div class="actions">
+        <div style="font-size:13px; color:var(--muted);">Demo: <strong style="color:var(--white)">Username: admin / Password: admin</strong></div>
+        <button type="submit" class="btn">Login</button>
+      </div>
+
+      <p class="note">Change demo credentials in <code>app.py</code> before production.</p>
+    </form>
+
+    <!-- Google Sign-In button (uses Identity Services) -->
+    <div
+      id="g_id_onload"
+      data-client_id="89857319729-uqu91j35vq9m5djjmrclbd8dorkhktej.apps.googleusercontent.com"
+      data-login_uri="/api/auth/google"
+      data-auto_prompt="false">
+    </div>
+
+    <!-- Render target for Google button (we initialize it explicitly below) -->
+    <div id="gsi-button"></div>
+
+    <script>
+      // Called by Google Identity Services when a credential is available
+      function handleCredentialResponse(response) {
+        // Send ID token to backend for verification and sign-in
+        fetch('/api/auth/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id_token: response.credential })
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data && data.success) {
+            // Redirect to dashboard on successful login
+            window.location.href = data.redirect || '/';
+          } else {
+            console.warn('Google sign-in failed', data);
+            alert('Google sign-in failed');
+          }
+        })
+        .catch(err => {
+          console.error('Error sending token to server', err);
+          alert('Sign-in error');
+        });
+      }
+
+      // Attach handler for global callback expected by the Google button
+      window.handleCredentialResponse = handleCredentialResponse;
+
+      // Initialize and render the GSI button explicitly. This is more reliable
+      // for development and gives us better debug control than relying solely
+      // on the declarative data-* markup.
+      function initGSI() {
+        const clientId = "{{ GOOGLE_CLIENT_ID or 'YOUR_GOOGLE_CLIENT_ID' }}";
+        if (!window.google || !google.accounts || !google.accounts.id) {
+          console.warn('GSI library not available yet');
+          return;
+        }
+        try {
+          google.accounts.id.initialize({
+            client_id: clientId,
+            callback: handleCredentialResponse,
+            auto_select: false
+          });
+
+          google.accounts.id.renderButton(
+            document.getElementById('gsi-button'),
+            { theme: 'outline', size: 'large', type: 'standard' }
+          );
+
+          // Optionally show the One Tap prompt (comment out in many dev cases)
+          // google.accounts.id.prompt();
+        } catch (e) {
+          console.error('Error initializing GSI', e);
+        }
+      }
+
+      // Retry until the GSI script loads (very small number of retries)
+      document.addEventListener('DOMContentLoaded', function () {
+        let tries = 0;
+        const iv = setInterval(() => {
+          if (window.google && google.accounts && google.accounts.id) {
+            clearInterval(iv);
+            initGSI();
+            return;
+          }
+          if (++tries > 15) {
+            clearInterval(iv);
+            console.warn('GSI failed to load after retries');
+          }
+        }, 200);
+      });
+    </script>
+
+  </div>
+</body>
+</html>

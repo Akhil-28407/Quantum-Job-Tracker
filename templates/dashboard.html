@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BlueQubit Quantum Job Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #0a0f1f 0%, #232b4d 100%);
+      color: #f1f5f9;
+      font-family: system-ui, sans-serif;
+      min-height: 100vh;
+    }
+    .panel, .job-card, .stat-card {
+      position: relative;
+      background: linear-gradient(135deg, #232b4d 0%, #3b82f6 100%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 1rem;
+      box-shadow: 0 0 24px 0 rgba(59,130,246,0.15);
+      overflow: hidden;
+      transition: transform 0.2s cubic-bezier(.4,2,.6,1), box-shadow 0.2s;
+    }
+    .panel::before, .job-card::before, .stat-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 45%;
+      background: linear-gradient(120deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.05) 100%);
+      border-radius: 1rem 1rem 50% 50%/1rem 1rem 30% 30%;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .panel:hover, .job-card:hover, .stat-card:hover {
+      transform: translateY(-4px) scale(1.02);
+      box-shadow: 0 8px 32px 0 rgba(59,130,246,0.25);
+    }
+    .stat-card {
+      padding: 1.2rem 1rem 1rem 1rem;
+      text-align: center;
+      margin-bottom: 0;
+    }
+    .job-card {
+      margin-bottom: 1.2rem;
+      padding: 1.2rem 1rem 1rem 1rem;
+      z-index: 2;
+      background: linear-gradient(135deg, #232b4d 0%, #1e293b 100%);
+    }
+    .badge { padding: 0.2rem 0.5rem; border-radius: 0.25rem; font-size: 0.8rem; font-weight: bold; }
+    .badge-completed { background: #16a34a; color: white; }
+    .badge-failed { background: #dc2626; color: white; }
+    .badge-running { background: #f59e0b; color: white; }
+    .badge-queued { background: #3b82f6; color: white; }
+    /* Animations */
+    .fade-in { animation: fadeIn 0.7s cubic-bezier(.4,2,.6,1); }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(16px);}
+      to { opacity: 1; transform: none;}
+    }
+    /* Graph container */
+    .graph-container {
+      background: linear-gradient(135deg, #232b4d 0%, #1e293b 100%);
+      border-radius: 1rem;
+      box-shadow: 0 0 16px 0 rgba(59,130,246,0.10);
+      padding: 1rem 1rem 0.5rem 1rem;
+      margin-bottom: 1.5rem;
+      position: relative;
+      min-height: 320px;      /* Increased from 220px */
+      max-width: 700px;       /* Increased from 420px */
+      margin-left: auto;
+      margin-right: auto;
+      overflow: hidden;
+    }
+    canvas {
+      background: transparent !important;
+      max-height: 260px !important; /* Increased from 140px */
+      margin: 0 auto;
+      z-index: 2;
+    }
+    /* Live button */
+    .live-dot {
+      height: 0.75rem; width: 0.75rem;
+      background: #3b82f6;
+      border-radius: 9999px;
+      display: inline-block;
+      margin-right: 0.5rem;
+      box-shadow: 0 0 8px 2px #3b82f6;
+      animation: pulse 1.2s infinite alternate;
+      vertical-align: middle;
+    }
+    @keyframes pulse {
+      from { box-shadow: 0 0 8px 2px #3b82f6; opacity: 1;}
+      to { box-shadow: 0 0 16px 6px #3b82f6; opacity: 0.7;}
+    }
+
+    /* Mobile Responsiveness */
+    @media screen and (max-width: 768px) {
+      .flex-col {
+        padding: 0.5rem;
+      }
+      
+      .stat-card {
+        padding: 0.8rem;
+        font-size: 0.9rem;
+      }
+
+      .job-card {
+        padding: 0.8rem;
+        margin-bottom: 0.8rem;
+      }
+
+      .graph-container {
+        min-height: 260px;
+        margin-bottom: 1rem;
+        padding: 0.8rem;
+      }
+
+      canvas {
+        max-height: 200px !important;
+      }
+
+      /* Controls section */
+      .flex.flex-wrap.gap-4.mb-4 {
+        gap: 0.5rem !important;
+      }
+
+      input#search,
+      select#filter-status,
+      button {
+        width: 100%;
+        margin-bottom: 0.5rem;
+      }
+
+      /* Stats grid */
+      #stats {
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.5rem !important;
+      }
+
+      /* Header adjustments */
+      header.flex {
+        flex-direction: column;
+        gap: 0.5rem;
+        align-items: flex-start;
+        padding: 0.8rem;
+      }
+
+      header .flex.items-center.gap-4 {
+        width: 100%;
+        justify-content: space-between;
+      }
+
+      /* Main content layout */
+      main.p-4 {
+        padding: 0.5rem;
+      }
+
+      .flex.flex-col.md\:flex-row.gap-8 {
+        gap: 1rem;
+      }
+
+      /* Job cards text */
+      .job-card h2 {
+        font-size: 1rem;
+      }
+
+      .job-card p {
+        font-size: 0.9rem;
+        margin: 0.3rem 0;
+      }
+
+      .badge {
+        font-size: 0.7rem;
+        padding: 0.1rem 0.4rem;
+      }
+    }
+
+    /* Small mobile devices */
+    @media screen and (max-width: 380px) {
+      #stats {
+        grid-template-columns: 1fr !important;
+      }
+
+      .stat-card {
+        padding: 0.6rem;
+      }
+
+      .graph-container {
+        min-height: 220px;
+      }
+
+      canvas {
+        max-height: 180px !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="flex justify-between items-center bg-transparent p-4 pb-2">
+    <div class="flex items-center gap-3">
+      <!-- Live dot and title here if needed -->
+    </div>
+    <div class="text-gray-300 text-sm">
+      <!-- Date or other info here -->
+    </div>
+    <div class="flex items-center gap-4">
+      <span id="health-status" class="text-sm text-gray-400"></span>
+
+      <!-- Changed: use POST form to /logout so clicking actually logs out -->
+      <form id="logout-form" method="post" action="/logout" style="display:inline; margin:0;">
+        <button type="submit" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded transition">Logout</button>
+      </form>
+    </div>
+  </header>
+
+  <main class="p-4 fade-in max-w-[100vw] overflow-x-hidden">
+    <div class="flex flex-col md:flex-row gap-8">
+      <!-- Left: Controls, Stats, Jobs List -->
+      <div class="flex-1 min-w-0">
+        <!-- Controls -->
+        <div class="flex flex-wrap gap-4 mb-4">
+          <input id="search" type="text" placeholder="Search Job ID..." 
+                 class="border border-blue-900 bg-[#10172a] text-blue-100 rounded p-2 flex-1 min-w-[200px] focus:ring-2 focus:ring-blue-500 transition">
+          <select id="filter-status" class="border border-blue-900 bg-[#10172a] text-blue-100 rounded p-2">
+            <option value="">All Statuses</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="FAILED">Failed</option>
+            <option value="RUNNING">Running</option>
+            <option value="QUEUED">Queued</option>
+          </select>
+          <button onclick="fetchJobs()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded transition">Refresh</button>
+          <button onclick="toggleAutoRefresh()" id="auto-refresh-btn" 
+                  class="bg-gray-700 hover:bg-gray-600 text-white px-4 py-2 rounded transition">Auto Refresh: OFF</button>
+          <button onclick="createJob()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded transition">Create Job</button>
+          <button onclick="clearCompleted()" id="clear-completed-btn" 
+                  class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition">Clear Completed</button>
+        </div>
+
+        <!-- Stats -->
+        <div id="stats" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6"></div>
+
+        <!-- Jobs List -->
+        <div id="jobs-list"></div>
+      </div>
+      <!-- Right: Graphs -->
+      <div class="flex flex-col gap-8 w-full md:w-[700px] max-w-[700px]">
+        <div class="graph-container">
+          <h2 class="text-lg font-semibold mb-2 text-blue-200">Job Creation Timeline</h2>
+          <canvas id="jobsChart"></canvas>
+        </div>
+        <div class="graph-container">
+          <h2 class="text-lg font-semibold mb-2 text-blue-200">Job Status Distribution</h2>
+          <canvas id="statusChart"></canvas>
+        </div>
+        <div class="graph-container">
+          <h2 class="text-lg font-semibold mb-2 text-blue-200">Avg Runtime by Status</h2>
+          <canvas id="runtimeChart"></canvas>
+        </div>
+        <div class="graph-container">
+          <h2 class="text-lg font-semibold mb-2 text-blue-200">Success Probability Trend</h2>
+          <canvas id="successChart"></canvas>
+        </div>
+        <div class="graph-container">
+          <h2 class="text-lg font-semibold mb-2 text-blue-200">Manual vs Auto Jobs</h2>
+          <canvas id="manualChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Set date
+    document.addEventListener('DOMContentLoaded', () => {
+      const d = new Date();
+      document.getElementById('current-date').innerText = d.toLocaleDateString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric'
+      });
+    });
+
+    let autoRefresh = false;
+    let refreshInterval;
+    let chart, statusChart, runtimeChart, successChart, manualChart;
+
+    async function fetchHealth() {
+      const res = await fetch('/api/health');
+      const data = await res.json();
+      document.getElementById('health-status').innerText = 
+        `Server: ${data.status} (${new Date(data.timestamp).toLocaleTimeString()})`;
+    }
+
+    async function fetchJobs() {
+      const response = await fetch('/api/jobs?limit=30');
+      const data = await response.json();
+
+      const search = document.getElementById('search').value.toLowerCase();
+      const filterStatus = document.getElementById('filter-status').value;
+
+      let jobs = data.jobs.filter(job => 
+        (!search || job.id.toLowerCase().includes(search)) &&
+        (!filterStatus || job.status === filterStatus)
+      );
+
+      // Update Stats
+      const stats = { COMPLETED: 0, FAILED: 0, RUNNING: 0, QUEUED: 0 };
+      jobs.forEach(j => stats[j.status]++);
+      document.getElementById('stats').innerHTML = Object.entries(stats).map(([k,v]) => {
+        let color = k === 'COMPLETED' ? 'text-green-400' : k === 'FAILED' ? 'text-red-400' : k === 'RUNNING' ? 'text-yellow-400' : 'text-blue-400';
+        let bg = k === 'COMPLETED' ? 'bg-green-900/60' : k === 'FAILED' ? 'bg-red-900/60' : k === 'RUNNING' ? 'bg-yellow-900/60' : 'bg-blue-900/60';
+        return `
+        <div class="stat-card ${bg}">
+          <h3 class="text-lg font-bold ${color}">${k}</h3>
+          <p class="text-2xl ${color}">${v}</p>
+          <div class="mt-2 text-xs text-blue-100">
+            ${k === 'RUNNING' && v > 0 ? 'Current: ' + jobs.filter(j => j.status === 'RUNNING').map(j => j.id).join(', ') : ''}
+            ${k === 'COMPLETED' && v > 0 ? 'Current: ' + jobs.filter(j => j.status === 'COMPLETED').map(j => j.id).join(', ') : ''}
+          </div>
+        </div>
+        `;
+      }).join('');
+
+      // Group jobs by status for cleaner display
+      const groupedJobs = jobs.reduce((acc, job) => {
+        if (!acc[job.status]) acc[job.status] = [];
+        acc[job.status].push(job);
+        return acc;
+      }, {});
+
+      // Define status order and colors for consistent display
+      const statusOrder = ['RUNNING', 'QUEUED', 'FAILED', 'COMPLETED'];
+      const statusColors = {
+        RUNNING: 'border-yellow-500/30 bg-yellow-900/20',
+        QUEUED: 'border-blue-500/30 bg-blue-900/20',
+        FAILED: 'border-red-500/30 bg-red-900/20',
+        COMPLETED: 'border-green-500/30 bg-green-900/20'
+      };
+
+      // Render jobs grouped by status
+      const jobsList = document.getElementById('jobs-list');
+      jobsList.innerHTML = statusOrder.map(status => {
+        const statusJobs = groupedJobs[status] || [];
+        if (statusJobs.length === 0) return ''; // Skip empty groups
+        
+        return `
+          <div class="mb-6">
+            <h3 class="text-lg font-semibold mb-3 text-blue-200">
+              ${status} Jobs (${statusJobs.length})
+            </h3>
+            <div class="space-y-2">
+              ${statusJobs.map(job => `
+                <div class="job-card fade-in border ${statusColors[status]}">
+                  <h2 class="text-lg font-semibold text-blue-200">${job.id} - ${job.type}</h2>
+                  <p>Status: <span class="badge badge-${job.status.toLowerCase()}">${job.status}</span></p>
+                  <p>Created At: ${new Date(job.created_at).toLocaleString()}</p>
+                  <p>Estimated Runtime: ${job.estimated_runtime} seconds</p>
+                  <p>Success Probability: ${job.success_probability.toFixed(2)}%</p>
+                  ${job.manual ? '<p class="text-xs text-green-400">Created Manually</p>' : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }).join('');
+
+      updateCharts(jobs);
+    }
+
+    async function createJob() {
+      await fetch('/api/create_job', { method: 'POST' });
+      fetchJobs();
+    }
+
+    async function clearCompleted() {
+      const response = await fetch('/api/clear_completed', { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        console.log(data.message);
+        fetchJobs(); // Refresh the job list
+      } else {
+        console.error('Failed to clear completed jobs');
+      }
+    }
+
+    function toggleAutoRefresh() {
+      autoRefresh = !autoRefresh;
+      document.getElementById('auto-refresh-btn').innerText = `Auto Refresh: ${autoRefresh ? 'ON' : 'OFF'}`;
+      if (autoRefresh) {
+        refreshInterval = setInterval(fetchJobs, 5000);
+      } else {
+        clearInterval(refreshInterval);
+      }
+    }
+
+    function updateCharts(jobs) {
+      // Timeline
+      const labels = jobs.map(j => new Date(j.created_at).toLocaleTimeString());
+      const counts = jobs.map((_, idx) => idx + 1);
+      if (chart) chart.destroy();
+      chart = new Chart(document.getElementById('jobsChart'), {
+        type: 'line',
+        data: { labels, datasets: [{ label: 'Jobs Created', data: counts, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.15)', fill: true, tension: 0.3 }] },
+        options: {
+          plugins: { legend: { labels: { color: "#e0e7ef" } } },
+          scales: {
+            x: { ticks: { color: "#e0e7ef" }, grid: { color: "rgba(59,130,246,0.10)" } },
+            y: { ticks: { color: "#e0e7ef" }, grid: { color: "rgba(59,130,246,0.10)" } }
+          }
+        }
+      });
+
+      // Pie Chart
+      const statusCounts = jobs.reduce((acc, j) => { acc[j.status] = (acc[j.status] || 0) + 1; return acc; }, {});
+      if (statusChart) statusChart.destroy();
+      statusChart = new Chart(document.getElementById('statusChart'), {
+        type: 'doughnut',
+        data: { labels: Object.keys(statusCounts), datasets: [{ data: Object.values(statusCounts), backgroundColor: ['#16a34a', '#dc2626', '#f59e0b', '#3b82f6'] }] },
+        options: {
+          plugins: { legend: { labels: { color: "#e0e7ef" } } }
+        }
+      });
+
+      // Runtime Bar
+      const runtimeGroups = {};
+      jobs.forEach(j => { if (!runtimeGroups[j.status]) runtimeGroups[j.status] = []; runtimeGroups[j.status].push(j.estimated_runtime); });
+      const avgRuntime = Object.fromEntries(Object.entries(runtimeGroups).map(([k, arr]) => [k, arr.reduce((a,b)=>a+b,0)/arr.length]));
+      if (runtimeChart) runtimeChart.destroy();
+      runtimeChart = new Chart(document.getElementById('runtimeChart'), {
+        type: 'bar',
+        data: { labels: Object.keys(avgRuntime), datasets: [{ label: 'Avg Runtime (s)', data: Object.values(avgRuntime), backgroundColor: '#3b82f6' }] },
+        options: {
+          plugins: { legend: { labels: { color: "#e0e7ef" } } },
+          scales: {
+            x: { ticks: { color: "#e0e7ef" }, grid: { color: "rgba(59,130,246,0.10)" } },
+            y: { ticks: { color: "#e0e7ef" }, grid: { color: "rgba(59,130,246,0.10)" } }
+          }
+        }
+      });
+
+      // Success Probability Trend
+      const successLabels = jobs.map(j => j.id);
+      const successData = jobs.map(j => j.success_probability.toFixed(2));
+      if (successChart) successChart.destroy();
+      successChart = new Chart(document.getElementById('successChart'), {
+        type: 'line',
+        data: { labels: successLabels, datasets: [{ label: 'Success Probability (%)', data: successData, borderColor: '#16a34a', backgroundColor: 'rgba(22,163,74,0.15)', fill: true, tension: 0.3 }] },
+        options: {
+          plugins: { legend: { labels: { color: "#e0e7ef" } } },
+          scales: {
+            x: { ticks: { color: "#e0e7ef" }, grid: { color: "rgba(59,130,246,0.10)" } },
+            y: { ticks: { color: "#e0e7ef" }, grid: { color: "rgba(59,130,246,0.10)" } }
+          }
+        }
+      });
+
+      // Manual vs Auto
+      const manualCount = jobs.filter(j => j.manual).length;
+      const autoCount = jobs.length - manualCount;
+      if (manualChart) manualChart.destroy();
+      manualChart = new Chart(document.getElementById('manualChart'), {
+        type: 'bar',
+        data: { labels: ['Jobs'], datasets: [
+          { label: 'Manual', data: [manualCount], backgroundColor: '#f59e0b' },
+          { label: 'Auto', data: [autoCount], backgroundColor: '#3b82f6' }
+        ] },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: "#e0e7ef" } } },
+          scales: {
+            x: { stacked: true, ticks: { color: "#e0e7ef" }, grid: { color: "rgba(59,130,246,0.10)" } },
+            y: { stacked: true, ticks: { color: "#e0e7ef" }, grid: { color: "rgba(59,130,246,0.10)" } }
+          }
+        }
+      });
+    }
+
+    function logout() {
+      // kept for compatibility if referenced elsewhere — do nothing now
+      // real logout happens via the POST form above
+      return;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      fetchJobs();
+      fetchHealth();
+      setInterval(fetchHealth, 10000);
+    });
+  </script>
+</body>
+</html>
